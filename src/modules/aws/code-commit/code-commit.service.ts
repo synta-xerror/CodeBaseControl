@@ -3,8 +3,8 @@ import {
   CodeCommitClient,
   ListRepositoriesCommand,
   GetFolderCommand,
+  GetFileCommand,
 } from '@aws-sdk/client-codecommit';
-import { fromIni } from '@aws-sdk/credential-provider-ini'; // Optional, for loading credentials
 
 @Injectable()
 export class CodeCommitService {
@@ -18,11 +18,10 @@ export class CodeCommitService {
   }
 
   async listRepositories(): Promise<any> {
-    // Create a command instance and send it using the client
     const command = new ListRepositoriesCommand({});
     try {
       const data = await this.codeCommitClient.send(command);
-      return data.repositories; // Assuming the response structure is similar to v2
+      return data.repositories;
     } catch (err) {
       throw err;
     }
@@ -35,7 +34,22 @@ export class CodeCommitService {
     return this.fetchFolderContents(repositoryName, '', commitSpecifier);
   }
 
-  async getFileContents() {}
+  async getFileContents(filePath: string) {
+    try {
+      // Get contents of the file
+      const command = new GetFileCommand({
+        repositoryName: 'codebasecontrol',
+        filePath,
+        commitSpecifier: 'main',
+      });
+      const data = await this.codeCommitClient.send(command);
+      // Assuming the file content is UTF-8 encoded text
+      const fileContent = new TextDecoder('utf-8').decode(data.fileContent);
+      return fileContent;
+    } catch (err) {
+      throw err;
+    }
+  }
 
   private async fetchFolderContents(
     repositoryName: string,
@@ -50,7 +64,7 @@ export class CodeCommitService {
 
     try {
       const data = await this.codeCommitClient.send(command);
-      let currentNode = {
+      const currentNode = {
         path: folderPath,
         type: 'directory',
         children: [],
@@ -88,7 +102,7 @@ export class CodeCommitService {
       return currentNode;
     } catch (err) {
       console.warn(`Folder does not exist: ${folderPath}, skipping.`);
-      return null; // Optionally handle non-existent folders
+      return null;
     }
   }
 }

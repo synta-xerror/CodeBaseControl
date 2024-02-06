@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { CodeCommitService } from './code-commit.service';
 
 @Controller('codeCommit')
@@ -17,8 +17,8 @@ export class CodeCommitController {
     return this.codeCommitService.getFileTree();
   }
 
-  @Get('/file')
-  async getFile() {
-    return this.codeCommitService.getFileContents();
+  @Get('/fileDetails')
+  async getFile(@Query('filePath') filePath: string) {
+    return this.codeCommitService.getFileContents(filePath);
   }
 }
