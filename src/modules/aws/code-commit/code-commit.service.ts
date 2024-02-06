@@ -34,18 +34,41 @@ export class CodeCommitService {
     return this.fetchFolderContents(repositoryName, '', commitSpecifier);
   }
 
-  async getFileContents(filePath: string) {
+  async getFileContents(
+    filePath: string,
+    repositoryName: string = 'codebasecontrol',
+    commitSpecifier: string = 'main',
+  ) {
     try {
       // Get contents of the file
       const command = new GetFileCommand({
-        repositoryName: 'codebasecontrol',
+        repositoryName,
         filePath,
-        commitSpecifier: 'main',
+        commitSpecifier,
       });
       const data = await this.codeCommitClient.send(command);
       // Assuming the file content is UTF-8 encoded text
       const fileContent = new TextDecoder('utf-8').decode(data.fileContent);
       return fileContent;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async getMultipleFileContents(
+    filePaths: string[],
+    repositoryName: string = 'codebasecontrol',
+    commitSpecifier: string = 'main',
+  ): Promise<any[]> {
+    try {
+      const fileContentPromises = filePaths.map((filePath) =>
+        this.getFileContents(filePath, repositoryName, commitSpecifier),
+      );
+      const fileContents = await Promise.all(fileContentPromises);
+      return fileContents.map((content, index) => ({
+        filePath: filePaths[index],
+        content,
+      }));
     } catch (err) {
       throw err;
     }

@@ -21,4 +21,11 @@ export class CodeCommitController {
   async getFile(@Query('filePath') filePath: string) {
     return this.codeCommitService.getFileContents(filePath);
   }
+
+  @Get('/multipleFileDetails')
+  async getMultipleFiles(@Query('filePaths') filePaths: string) {
+    console.log(filePaths);
+    const filePathsArray = filePaths.split(',');
+    return this.codeCommitService.getMultipleFileContents(filePathsArray);
+  }
 }
