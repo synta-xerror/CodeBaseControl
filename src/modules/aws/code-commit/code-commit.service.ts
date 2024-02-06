@@ -1,23 +1,31 @@
 import { Injectable } from '@nestjs/common';
-import * as AWS from 'aws-sdk';
-
-AWS.config.update({ region: 'us-east-1' });
+import {
+  CodeCommitClient,
+  ListRepositoriesCommand,
+  GetFolderCommand,
+} from '@aws-sdk/client-codecommit';
+import { fromIni } from '@aws-sdk/credential-provider-ini'; // Optional, for loading credentials
 
 @Injectable()
 export class CodeCommitService {
-  private codeCommit: AWS.CodeCommit;
+  private codeCommitClient: CodeCommitClient;
 
   constructor() {
-    this.codeCommit = new AWS.CodeCommit({ apiVersion: '2015-04-13' });
+    // Initialize the CodeCommit client
+    this.codeCommitClient = new CodeCommitClient({
+      region: 'us-east-1',
+    });
   }
 
   async listRepositories(): Promise<any> {
-    return new Promise((resolve, reject) => {
-      this.codeCommit.listRepositories({}, (err, data) => {
-        if (err) reject(err);
-        else resolve(data.repositories);
-      });
-    });
+    // Create a command instance and send it using the client
+    const command = new ListRepositoriesCommand({});
+    try {
+      const data = await this.codeCommitClient.send(command);
+      return data.repositories; // Assuming the response structure is similar to v2
+    } catch (err) {
+      throw err;
+    }
   }
 
   async getFileTree(
@@ -29,65 +37,58 @@ export class CodeCommitService {
 
   async getFileContents() {}
 
-
   private async fetchFolderContents(
     repositoryName: string,
     folderPath: string,
     commitSpecifier: string,
   ): Promise<any> {
-    return new Promise((resolve, reject) => {
-      console.log(
-        `Requesting folder contents for path: '${folderPath}' in repository: '${repositoryName}' at commit: '${commitSpecifier}'`,
-      );
-
-      this.codeCommit.getFolder(
-        { repositoryName, folderPath, commitSpecifier },
-        async (err, data) => {
-          if (err) {
-            console.warn(`Folder does not exist: ${folderPath}, skipping.`);
-            resolve(null); // Optionally handle non-existent folders
-          } else {
-            let currentNode = {
-              path: folderPath,
-              type: 'directory',
-              children: [],
-            };
-
-            data.files?.forEach((file) => {
-              currentNode.children.push({
-                path: file.absolutePath,
-                type: 'file',
-              });
-            });
-
-            // Here's the critical adjustment for subfolder path concatenation
-            const folderPromises =
-              data.subFolders?.map((subFolder) => {
-                const fullPath = folderPath
-                  ? `${folderPath}/${subFolder.relativePath}`
-                  : subFolder.relativePath;
-                return this.fetchFolderContents(
-                  repositoryName,
-                  fullPath,
-                  commitSpecifier,
-                );
-              }) || [];
-
-            const folders = await Promise.allSettled(folderPromises);
-            folders.forEach((result) => {
-              if (result.status === 'fulfilled' && result.value) {
-                currentNode.children.push(result.value);
-              } else if (result.status === 'rejected' && result.reason) {
-                console.warn(
-                  `Failed to fetch subfolder contents: ${result.reason}`,
-                );
-              }
-            });
-
-            resolve(currentNode);
-          }
-        },
-      );
+    const command = new GetFolderCommand({
+      repositoryName,
+      folderPath,
+      commitSpecifier,
     });
+
+    try {
+      const data = await this.codeCommitClient.send(command);
+      let currentNode = {
+        path: folderPath,
+        type: 'directory',
+        children: [],
+      };
+
+      data.files?.forEach((file) => {
+        currentNode.children.push({
+          path: file.absolutePath,
+          type: 'file',
+        });
+      });
+
+      // Process subFolders similar to your existing logic
+      const folderPromises =
+        data.subFolders?.map(async (subFolder) => {
+          const fullPath = folderPath
+            ? `${folderPath}/${subFolder.relativePath}`
+            : subFolder.relativePath;
+          return this.fetchFolderContents(
+            repositoryName,
+            fullPath,
+            commitSpecifier,
+          );
+        }) || [];
+
+      const folders = await Promise.allSettled(folderPromises);
+      folders.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          currentNode.children.push(result.value);
+        } else if (result.status === 'rejected' && result.reason) {
+          console.warn(`Failed to fetch subfolder contents: ${result.reason}`);
+        }
+      });
+
+      return currentNode;
+    } catch (err) {
+      console.warn(`Folder does not exist: ${folderPath}, skipping.`);
+      return null; // Optionally handle non-existent folders
+    }
   }
 }
