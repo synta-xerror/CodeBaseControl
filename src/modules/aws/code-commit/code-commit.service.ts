@@ -4,17 +4,19 @@ import {
   ListRepositoriesCommand,
   GetFolderCommand,
   GetFileCommand,
+  GetBranchCommand,
 } from '@aws-sdk/client-codecommit';
 
 @Injectable()
 export class CodeCommitService {
   private codeCommitClient: CodeCommitClient;
+  private cache: Map<string, any>;
 
   constructor() {
-    // Initialize the CodeCommit client
     this.codeCommitClient = new CodeCommitClient({
       region: 'us-east-1',
     });
+    this.cache = new Map();
   }
 
   async listRepositories(): Promise<any> {
@@ -29,9 +31,35 @@ export class CodeCommitService {
 
   async getFileTree(
     repositoryName = 'codebasecontrol',
-    commitSpecifier = 'main',
+    branchName = 'main',
   ): Promise<any> {
-    return this.fetchFolderContents(repositoryName, '', commitSpecifier);
+    // Check the latest commit ID for the branch
+    const branchData = await this.getLatestCommitId(repositoryName, branchName);
+    const cacheKey = `${repositoryName}-${branchName}-${branchData.commitId}`;
+    if (this.cache.has(cacheKey)) {
+      console.log('Cache hit');
+      return this.cache.get(cacheKey);
+    } else {
+      const fileTree = await this.fetchFolderContents(
+        repositoryName,
+        '',
+        branchData.commitId,
+      );
+      this.cache.set(cacheKey, fileTree);
+      return fileTree;
+    }
+  }
+
+  private async getLatestCommitId(
+    repositoryName: string,
+    branchName: string,
+  ): Promise<any> {
+    const command = new GetBranchCommand({
+      repositoryName,
+      branchName,
+    });
+    const data = await this.codeCommitClient.send(command);
+    return { commitId: data.branch.commitId };
   }
 
   async getFileContents(
