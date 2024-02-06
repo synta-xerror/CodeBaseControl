@@ -27,4 +27,21 @@ export class AsanaService {
       throw new Error('Failed to fetch Asana task');
     }
   }
+
+  async addCommentToTask(taskId: string, comment: string): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(
+        `/tasks/${taskId}/stories`,
+        {
+          data: {
+            text: comment,
+          },
+        },
+      );
+      return response.data;
+    } catch (error) {
+      this.logger.error('Error posting comment to Asana task:', error);
+      throw new Error('Failed to post comment to Asana task');
+    }
+  }
 }
