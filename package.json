@@ -28,6 +28,7 @@
     "@nestjs/platform-express": "^10.0.0",
     "aws-sdk": "^2.1548.0",
     "axios": "^1.6.7",
+    "diff": "^5.1.0",
     "dotenv": "^16.4.1",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1"

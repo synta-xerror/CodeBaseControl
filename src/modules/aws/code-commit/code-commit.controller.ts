@@ -28,4 +28,15 @@ export class CodeCommitController {
     const filePathsArray = filePaths.split(',');
     return this.codeCommitService.getMultipleFileContents(filePathsArray);
   }
+
+  @Get('/diffLastTwoCommits')
+  async diffLastTwoCommits(
+    @Query('repositoryName') repositoryName: string = 'codebasecontrol',
+    @Query('branchName') branchName: string  = 'main',
+  ) {
+    return this.codeCommitService.diffLastTwoCommits(
+      repositoryName,
+      branchName,
+    );
+  }
 }

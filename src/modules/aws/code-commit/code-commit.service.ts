@@ -5,6 +5,9 @@ import {
   GetFolderCommand,
   GetFileCommand,
   GetBranchCommand,
+  GetDifferencesCommand,
+  GetCommitCommand,
+  GetBlobCommand,
 } from '@aws-sdk/client-codecommit';
 
 @Injectable()
@@ -154,6 +157,115 @@ export class CodeCommitService {
     } catch (err) {
       console.warn(`Folder does not exist: ${folderPath}, skipping.`);
       return null;
+    }
+  }
+
+  async diffLastTwoCommits(
+    repositoryName: string,
+    branchName: string,
+  ): Promise<any> {
+    const { latestCommitId, parentCommitId } = await this.fetchLastTwoCommitIds(
+      repositoryName,
+      branchName,
+    );
+
+    console.log('latestCommitId:', latestCommitId);
+    console.log('parentCommitId:', parentCommitId);
+
+    const command = new GetDifferencesCommand({
+      repositoryName,
+      beforeCommitSpecifier: parentCommitId,
+      afterCommitSpecifier: latestCommitId,
+    });
+
+    try {
+      const data = await this.codeCommitClient.send(command);
+      // For each difference, fetch the file content for both versions
+      const fileDiffs = await Promise.all(
+        data.differences.map(async (diff) => {
+          const filePath = diff.afterBlob?.path || diff.beforeBlob?.path;
+          let beforeContent = null;
+          let afterContent = null;
+
+          if (diff.beforeBlob?.blobId) {
+            beforeContent = await this.fetchBlobContent(
+              repositoryName,
+              diff.beforeBlob.blobId,
+            );
+          }
+          if (diff.afterBlob?.blobId) {
+            afterContent = await this.fetchBlobContent(
+              repositoryName,
+              diff.afterBlob.blobId,
+            );
+          }
+
+          return {
+            filePath,
+            changeType: diff.changeType,
+            beforeContent,
+            afterContent,
+          };
+        }),
+      );
+      return fileDiffs;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  private async fetchBlobContent(
+    repositoryName: string,
+    blobId: string,
+  ): Promise<string> {
+    const command = new GetBlobCommand({
+      repositoryName, // Add the repository name here
+      blobId: blobId,
+    });
+    try {
+      const data = await this.codeCommitClient.send(command);
+      // Assuming the file content is UTF-8 encoded text
+      return new TextDecoder('utf-8').decode(data.content);
+    } catch (err) {
+      console.error('Error fetching blob content:', err);
+      throw err;
+    }
+  }
+
+  private async fetchLastTwoCommitIds(
+    repositoryName: string,
+    branchName: string,
+  ): Promise<{ latestCommitId: string; parentCommitId: string }> {
+    try {
+      // Use GetBranchCommand to get the latest commit ID
+      const branchCommand = new GetBranchCommand({
+        repositoryName,
+        branchName,
+      });
+      const branchData = await this.codeCommitClient.send(branchCommand);
+      const latestCommitId = branchData.branch.commitId;
+
+      // Use GetCommitCommand to get the parent commit ID of the latest commit
+      const commitCommand = new GetCommitCommand({
+        repositoryName,
+        commitId: latestCommitId,
+      });
+      const commitData = await this.codeCommitClient.send(commitCommand);
+
+      // Assuming there's at least one parent commit. If not, handle accordingly.
+      const parentCommitId = commitData.commit.parents[0] || null;
+
+      if (!parentCommitId) {
+        throw new Error('The latest commit does not have a parent commit.');
+      }
+
+      return {
+        latestCommitId,
+        parentCommitId,
+      };
+    } catch (err) {
+      console.error('Error fetching commit IDs:', err);
+      throw err; // Or handle this error more gracefully
     }
   }
 }
