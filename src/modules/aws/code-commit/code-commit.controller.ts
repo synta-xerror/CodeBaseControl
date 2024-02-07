@@ -32,11 +32,29 @@ export class CodeCommitController {
   @Get('/diffLastTwoCommits')
   async diffLastTwoCommits(
     @Query('repositoryName') repositoryName: string = 'codebasecontrol',
-    @Query('branchName') branchName: string  = 'main',
+    @Query('branchName') branchName: string = 'main',
   ) {
     return this.codeCommitService.diffLastTwoCommits(
       repositoryName,
       branchName,
+    );
+  }
+
+  @Get('/recentCommits')
+  async getRecentCommits(
+    @Query('repositoryName') repositoryName: string = 'codebasecontrol',
+    @Query('branchName') branchName: string = 'main',
+    @Query('maxCommits') maxCommits: string = "10", // Received as string, needs conversion to number
+  ) {
+    // Convert maxCommits query parameter to number with a default value
+    const maxCommitsNumber = maxCommits ? parseInt(maxCommits, 10) : 10; // Default to 10 if not specified
+    if (isNaN(maxCommitsNumber)) {
+      throw new Error('maxCommits must be a valid number');
+    }
+    return this.codeCommitService.listRecentCommits(
+      repositoryName,
+      branchName,
+      maxCommitsNumber,
     );
   }
 }

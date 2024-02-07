@@ -268,4 +268,45 @@ export class CodeCommitService {
       throw err; // Or handle this error more gracefully
     }
   }
+  // Method to fetch commit details by commit ID
+  private async getCommitDetails(
+    repositoryName: string,
+    commitId: string,
+  ): Promise<any> {
+    const command = new GetCommitCommand({
+      repositoryName,
+      commitId,
+    });
+    const response = await this.codeCommitClient.send(command);
+    return response.commit;
+  }
+
+  // Method to list recent commits on a branch (simplified example)
+  async listRecentCommits(
+    repositoryName: string,
+    branchName: string,
+    maxCommits: number = 10,
+  ): Promise<any[]> {
+    let currentCommitId = (
+      await this.getLatestCommitId(repositoryName, branchName)
+    ).commitId;
+    console.log('latestCommitId:', currentCommitId);
+
+    let commits = [];
+    for (let i = 0; i < maxCommits && currentCommitId; i++) {
+      const commitDetails = await this.getCommitDetails(
+        repositoryName,
+        currentCommitId,
+      );
+      commits.push(commitDetails);
+
+      // Check if there are parent commits and set the next commit ID to the first parent
+      if (commitDetails.parents && commitDetails.parents.length > 0) {
+        currentCommitId = commitDetails.parents[0];
+      } else {
+        break; // No more parents, exit the loop
+      }
+    }
+    return commits;
+  }
 }
